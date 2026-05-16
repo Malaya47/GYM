@@ -56,11 +56,12 @@ const DEFAULT_CONTENT: Required<RegistrationContent> = {
 };
 
 const initialForm = {
-  name: "",
+  firstName: "",
+  lastName: "",
   email: "",
   password: "",
   phone: "",
-  age: "",
+  dateOfBirth: "",
   gender: "",
   weight: "",
   height: "",
@@ -231,8 +232,16 @@ export function StepperRegistrationForm({
   function validateStep(current: Step) {
     setLocalError("");
     if (current === 0) {
-      if (!form.name || !form.email || !form.password || !form.phone) {
-        setLocalError("Please fill name, email, password and phone.");
+      if (
+        !form.firstName ||
+        !form.lastName ||
+        !form.email ||
+        !form.password ||
+        !form.phone
+      ) {
+        setLocalError(
+          "First name, last name, email, password, and phone are required.",
+        );
         return false;
       }
       if (form.password.length < 6) {
@@ -312,11 +321,12 @@ export function StepperRegistrationForm({
     setSuccess("");
     const registration = await dispatch(
       registerUser({
-        name: form.name,
+        firstName: form.firstName,
+        lastName: form.lastName,
         email: form.email,
         password: form.password,
         phone: form.phone || undefined,
-        age: form.age ? Number(form.age) : undefined,
+        dateOfBirth: form.dateOfBirth || undefined,
         gender: form.gender || undefined,
         weight: form.weight ? Number(form.weight) : undefined,
         height: form.height ? Number(form.height) : undefined,
@@ -414,9 +424,16 @@ export function StepperRegistrationForm({
           <div className="h-full flex flex-col justify-center w-full md:w-auto">
             <div className="space-y-4 w-full max-w-md mx-auto md:w-[80%] md:mx-5">
               <Field
-                label="Full Name"
-                name="name"
-                value={form.name}
+                label="First Name"
+                name="firstName"
+                value={form.firstName}
+                onChange={updateForm}
+                required
+              />
+              <Field
+                label="Last Name"
+                name="lastName"
+                value={form.lastName}
                 onChange={updateForm}
                 required
               />
@@ -444,13 +461,18 @@ export function StepperRegistrationForm({
                 onChange={updateForm}
                 required
               />
-              <Field
-                label="Age"
-                name="age"
-                type="number"
-                value={form.age}
-                onChange={updateForm}
-              />
+              <div>
+                <Label className="mb-1 block text-white/70">
+                  Date of Birth
+                </Label>
+                <input
+                  name="dateOfBirth"
+                  type="date"
+                  value={form.dateOfBirth}
+                  onChange={updateForm}
+                  className="h-9 py-1 w-full rounded-md border border-white/10 bg-[#18181b] px-3 pr-8 text-base shadow-xs text-white appearance-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                />
+              </div>
               <div>
                 <Label className="mb-1 block text-white/70">Gender</Label>
                 <select
@@ -643,7 +665,8 @@ export function StepperRegistrationForm({
           <div className="rounded-lg bg-white/5 p-5">
             <div className="mb-4 inline-flex flex-col gap-2">
               <span className="bg-white/10 px-4 py-2 text-2xl">
-                Client: {form.name || "-"}
+                Client:{" "}
+                {form.firstName ? `${form.firstName} ${form.lastName}` : "-"}
               </span>
             </div>
             <p className="text-sm leading-relaxed text-white/65">

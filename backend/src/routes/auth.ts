@@ -10,11 +10,12 @@ const router = Router();
 router.post("/register", async (req: Request, res: Response): Promise<void> => {
   try {
     const {
-      name,
+      firstName,
+      lastName,
       email,
       password,
       phone,
-      age,
+      dateOfBirth,
       gender,
       weight,
       height,
@@ -22,8 +23,12 @@ router.post("/register", async (req: Request, res: Response): Promise<void> => {
       experience,
     } = req.body;
 
-    if (!name || !email || !password) {
-      res.status(400).json({ error: "Name, email and password are required" });
+    if (!firstName || !lastName || !email || !password) {
+      res
+        .status(400)
+        .json({
+          error: "First name, last name, email and password are required",
+        });
       return;
     }
 
@@ -37,11 +42,12 @@ router.post("/register", async (req: Request, res: Response): Promise<void> => {
 
     const user = await prisma.user.create({
       data: {
-        name,
+        firstName,
+        lastName,
         email,
         password: hashed,
         phone: phone || null,
-        age: age ? Number(age) : null,
+        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
         gender: gender ? gender.toUpperCase() : null,
         weight: weight ? Number(weight) : null,
         height: height ? Number(height) : null,
@@ -50,10 +56,11 @@ router.post("/register", async (req: Request, res: Response): Promise<void> => {
       },
       select: {
         id: true,
-        name: true,
+        firstName: true,
+        lastName: true,
         email: true,
         phone: true,
-        age: true,
+        dateOfBirth: true,
         gender: true,
         goal: true,
         createdAt: true,
@@ -107,10 +114,11 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
       token,
       user: {
         id: user.id,
-        name: user.name,
+        firstName: user.firstName,
+        lastName: user.lastName,
         email: user.email,
         phone: user.phone,
-        age: user.age,
+        dateOfBirth: user.dateOfBirth,
         gender: user.gender,
         goal: user.goal,
       },
@@ -133,10 +141,11 @@ router.get(
         where: { id: req.userId },
         select: {
           id: true,
-          name: true,
+          firstName: true,
+          lastName: true,
           email: true,
           phone: true,
-          age: true,
+          dateOfBirth: true,
           gender: true,
           weight: true,
           height: true,

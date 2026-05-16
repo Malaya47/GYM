@@ -3,10 +3,11 @@ import api from "@/lib/api";
 
 export interface User {
   id: number;
-  name: string;
+  firstName: string;
+  lastName: string;
   email: string;
   phone?: string;
-  age?: number;
+  dateOfBirth?: string;
   gender?: string;
   goal?: string;
 }
@@ -36,11 +37,12 @@ export const registerUser = createAsyncThunk(
   "auth/register",
   async (
     data: {
-      name: string;
+      firstName: string;
+      lastName: string;
       email: string;
       password: string;
       phone?: string;
-      age?: number;
+      dateOfBirth?: string;
       gender?: string;
       weight?: number;
       height?: number;

@@ -123,7 +123,7 @@ export function Navbar() {
               {user ? (
                 <div className="self-center flex items-center gap-3">
                   <span className="text-white/80 text-sm flex items-center gap-1">
-                    <User size={14} /> {user.name}
+                    <User size={14} /> {user.firstName} {user.lastName}
                   </span>
                   <Button
                     variant="ghost"
@@ -180,7 +180,9 @@ export function Navbar() {
             ))}
             {user ? (
               <div className="flex items-center justify-between mt-4">
-                <span className="text-white/80 text-sm">{user.name}</span>
+                <span className="text-white/80 text-sm">
+                  {user.firstName} {user.lastName}
+                </span>
                 <Button
                   variant="ghost"
                   size="sm"

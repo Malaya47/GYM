@@ -37,22 +37,23 @@ model Admin {
 
 // ─── User (Customer) ───────────────────────────────────
 model User {
-  id         Int      @id @default(autoincrement())
-  name       String
-  email      String   @unique
-  password   String   // bcrypt hash
-  phone      String?
-  age        Int?
-  gender     Gender?
-  weight     Float?
-  height     Float?
-  goal       String?
-  experience String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id            Int      @id @default(autoincrement())
+  firstName     String
+  lastName      String
+  email         String   @unique
+  password      String   // bcrypt hash
+  phone         String?
+  dateOfBirth   DateTime?
+  gender        Gender?
+  weight        Float?
+  height        Float?
+  goal          String?
+  experience    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  memberships MembershipPurchase[]
-  orders      Order[]
+  memberships   MembershipPurchase[]
+  orders        Order[]
 }
 
 // ─── Membership Plan (static catalog) ──────────────────
