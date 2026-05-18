@@ -2,6 +2,11 @@ import { Router, Response } from "express";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
+import { transporter } from "../lib/mailer";
+import {
+  generateAgreementPdf,
+  AgreementPdfData,
+} from "../lib/generateAgreementPdf";
 
 const router = Router();
 
@@ -254,6 +259,193 @@ router.get(
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: "Failed to fetch purchases" });
+    }
+  },
+);
+
+// ─── POST /api/membership/send-agreement-email ──────────
+// Auth required – generate PDF and email signed agreement to user + gym owner
+router.post(
+  "/send-agreement-email",
+  requireAuth,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const {
+        contractNumber,
+        customerNumber,
+        memberName,
+        email,
+        phone,
+        dateOfBirth,
+        address,
+        emergencyContact,
+        planName,
+        planDuration,
+        planPrice,
+        currency,
+        additionalPlans,
+        registrationFee,
+        discountAmount,
+        discountLabel,
+        total,
+        startDate,
+        endDate,
+        paymentFrequency,
+        signatureDataUrl,
+        guardianSignatureDataUrl,
+        isMinor,
+        contractImageBase64,
+        contractPdfBase64,
+      } = req.body as AgreementPdfData & {
+        email: string;
+        contractImageBase64?: string;
+        contractPdfBase64?: string;
+      };
+
+      // Basic validation
+      if (!email || !planName) {
+        res.status(400).json({ error: "Missing required fields" });
+        return;
+      }
+
+      let pdfBuffer: Buffer;
+
+      if (contractPdfBase64 && typeof contractPdfBase64 === "string") {
+        // Frontend generated a proper PDF via jspdf — decode and use directly
+        const base64Data = contractPdfBase64.replace(/^data:application\/pdf;base64,/, "");
+        pdfBuffer = Buffer.from(base64Data, "base64");
+      } else if (contractImageBase64 && typeof contractImageBase64 === "string") {
+        // Legacy: embed the JPEG screenshot of the contract page into a PDF using pdfkit
+        const base64Data = contractImageBase64.replace(/^data:image\/jpeg;base64,/, "");
+        const imgBuffer = Buffer.from(base64Data, "base64");
+
+        // Parse JPEG dimensions from SOF marker
+        const getJpegDims = (buf: Buffer): { w: number; h: number } => {
+          let i = 2; // skip FFD8
+          while (i < buf.length - 8) {
+            if (buf[i] !== 0xff) break;
+            const marker = buf[i + 1];
+            if (marker === 0xc0 || marker === 0xc2) {
+              return { h: buf.readUInt16BE(i + 5), w: buf.readUInt16BE(i + 7) };
+            }
+            i += 2 + buf.readUInt16BE(i + 2);
+          }
+          return { w: 1240, h: 1754 }; // A4 fallback at 150dpi
+        };
+        const { w: imgW, h: imgH } = getJpegDims(imgBuffer);
+
+        pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const PDFDocument = require("pdfkit") as typeof import("pdfkit");
+          const pageW = 595.28; // A4 width in points
+          const pageH = 841.89; // A4 height in points
+          const doc = new PDFDocument({ autoFirstPage: false, margin: 0 });
+          const chunks: Buffer[] = [];
+          doc.on("data", (c: Buffer) => chunks.push(c));
+          doc.on("end", () => resolve(Buffer.concat(chunks)));
+          doc.on("error", reject);
+
+          const scaledFullH = (imgH / imgW) * pageW;
+          if (scaledFullH <= pageH) {
+            // Fits on one page
+            doc.addPage({ size: [pageW, pageH] });
+            doc.image(imgBuffer, 0, 0, { width: pageW });
+          } else {
+            // Split into A4 pages by offsetting the image vertically
+            const pxPerPage = (pageH / pageW) * imgW;
+            let yPx = 0;
+            while (yPx < imgH) {
+              doc.addPage({ size: [pageW, pageH] });
+              const yPt = -(yPx / imgW) * pageW;
+              doc.image(imgBuffer, 0, yPt, { width: pageW });
+              yPx += pxPerPage;
+            }
+          }
+          doc.end();
+        });
+      } else {
+        // Fallback: generate a summary PDF server-side
+        const submittedAt = new Date().toLocaleString("en-GB", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        const pdfData: AgreementPdfData = {
+          contractNumber,
+          customerNumber,
+          memberName,
+          email,
+          phone,
+          dateOfBirth,
+          address,
+          emergencyContact,
+          planName,
+          planDuration,
+          planPrice: Number(planPrice) || 0,
+          currency,
+          additionalPlans: Array.isArray(additionalPlans) ? additionalPlans : [],
+          registrationFee: Number(registrationFee) || 0,
+          discountAmount: Number(discountAmount) || 0,
+          discountLabel: discountLabel || "Discount",
+          total: Number(total) || 0,
+          startDate,
+          endDate,
+          paymentFrequency,
+          signatureDataUrl: signatureDataUrl || "",
+          guardianSignatureDataUrl,
+          isMinor: Boolean(isMinor),
+          submittedAt,
+        };
+        pdfBuffer = await generateAgreementPdf(pdfData);
+      }
+
+      const ownerEmail = process.env.OWNER_EMAIL;
+      if (!ownerEmail) {
+        res.status(500).json({ error: "Owner email not configured on server" });
+        return;
+      }
+
+      const subject = `Membership Agreement – ${memberName} (${contractNumber})`;
+      const bodyText =
+        `A new membership agreement has been signed.\n\n` +
+        `Member: ${memberName}\nEmail: ${email}\nContract No: ${contractNumber}\n` +
+        `Plan: ${planName} (${planDuration})\nTotal: ${currency} ${total}\n` +
+        `Start Date: ${startDate}\n\nPlease find the signed agreement attached.`;
+
+      const attachment = {
+        filename: `Agreement-${contractNumber}.pdf`,
+        content: pdfBuffer,
+        contentType: "application/pdf",
+      };
+
+      // Send to user
+      await transporter.sendMail({
+        from: `"Sentinators Gym" <${process.env.SMTP_USER}>`,
+        to: email,
+        subject,
+        text:
+          `Dear ${memberName},\n\nThank you for signing your membership agreement. ` +
+          `Please find your signed agreement attached.\n\n` +
+          `Contract No: ${contractNumber}\nPlan: ${planName}\nStart Date: ${startDate}\n\n` +
+          `Welcome to Sentinators Gym! We look forward to seeing you.\n\nTeam Sentinators`,
+        attachments: [attachment],
+      });
+
+      // Send to gym owner
+      await transporter.sendMail({
+        from: `"Sentinators Gym" <${process.env.SMTP_USER}>`,
+        to: ownerEmail,
+        subject,
+        text: bodyText,
+        attachments: [attachment],
+      });
+
+      res.json({ message: "Agreement emailed successfully" });
+    } catch (err) {
+      console.error("send-agreement-email error:", err);
+      res.status(500).json({ error: "Failed to send agreement email" });
     }
   },
 );

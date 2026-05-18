@@ -35,6 +35,15 @@ export function HeroSection() {
       .catch(() => {});
   }, []);
 
+  // Reopen the registration modal when the user returns from the contract page
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const contractResult = sessionStorage.getItem("gymContractResult");
+    if (contractResult) {
+      dispatch(openRegistrationModal());
+    }
+  }, [dispatch]);
+
   const handleOpenChange = (val: boolean) => {
     if (val) {
       dispatch(openRegistrationModal());

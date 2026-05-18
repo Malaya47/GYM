@@ -83,13 +83,25 @@ export function AdminMemberships() {
               {/* Info */}
               <div className="flex-1 min-w-0 space-y-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-white font-medium">{m.user.name}</span>
+                  <span className="text-white font-medium">
+                    {m.user.firstName} {m.user.lastName}
+                  </span>
                   <span className="text-white/30 text-xs">{m.user.email}</span>
                   <span
                     className={`text-xs border px-2 py-0.5 rounded-full ${statusBadge(m.status)}`}
                   >
                     {m.status}
                   </span>
+                  {m.registrationDetails?.contractNumber != null && (
+                    <span className="text-xs border border-blue-500/20 bg-blue-500/10 text-blue-300 px-2 py-0.5 rounded-full font-mono">
+                      {String(m.registrationDetails.contractNumber)}
+                    </span>
+                  )}
+                  {m.registrationDetails?.customerNumber != null && (
+                    <span className="text-xs border border-purple-500/20 bg-purple-500/10 text-purple-300 px-2 py-0.5 rounded-full font-mono">
+                      {String(m.registrationDetails.customerNumber)}
+                    </span>
+                  )}
                 </div>
                 <p className="text-sm text-white/60">
                   Plan: <span className="text-white">{m.plan.name}</span> —{" "}
@@ -150,6 +162,22 @@ export function AdminMemberships() {
                   <span>
                     Signature: {m.signatureDataUrl ? "Captured" : "Missing"}
                   </span>
+                  {m.registrationDetails?.contractNumber != null && (
+                    <span>
+                      Contract No:{" "}
+                      <span className="text-white/70 font-mono">
+                        {String(m.registrationDetails.contractNumber)}
+                      </span>
+                    </span>
+                  )}
+                  {m.registrationDetails?.customerNumber != null && (
+                    <span>
+                      Customer No:{" "}
+                      <span className="text-white/70 font-mono">
+                        {String(m.registrationDetails.customerNumber)}
+                      </span>
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-white/30">
                   Requested: {new Date(m.createdAt).toLocaleString()}

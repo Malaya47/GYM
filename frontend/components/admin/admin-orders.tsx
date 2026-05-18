@@ -78,7 +78,9 @@ export function AdminOrders() {
               {/* Info */}
               <div className="flex-1 min-w-0 space-y-1.5">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-white font-medium">{o.user.name}</span>
+                  <span className="text-white font-medium">
+                    {o.user.firstName} {o.user.lastName}
+                  </span>
                   <span className="text-white/30 text-xs">{o.user.email}</span>
                   <span
                     className={`text-xs border px-2 py-0.5 rounded-full ${statusBadge(o.status)}`}

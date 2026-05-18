@@ -74,14 +74,19 @@ export function AdminUsers() {
                   >
                     <td className="px-4 py-3 text-white/30">{user.id}</td>
                     <td className="px-4 py-3 text-white font-medium">
-                      {user.name}
+                      {user.firstName} {user.lastName}
                     </td>
                     <td className="px-4 py-3 text-white/60">{user.email}</td>
                     <td className="px-4 py-3 text-white/60">
                       {user.phone || "—"}
                     </td>
                     <td className="px-4 py-3 text-white/60">
-                      {user.age ?? "—"}
+                      {user.dateOfBirth
+                        ? new Date(user.dateOfBirth).toLocaleDateString(
+                            undefined,
+                            { year: "numeric", month: "short", day: "numeric" },
+                          )
+                        : "—"}
                     </td>
                     <td className="px-4 py-3 text-white/60">
                       {genderLabel(user.gender)}

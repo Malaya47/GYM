@@ -125,11 +125,11 @@ export function AdminUserDetail({ userId, onBack }: Props) {
           <div className="bg-[#111] border border-white/5 rounded-xl p-6">
             <div className="flex items-start gap-4">
               <div className="w-14 h-14 rounded-full bg-red-600/20 border border-red-600/20 flex items-center justify-center text-red-400 text-xl font-bold shrink-0">
-                {selectedUser.name.charAt(0).toUpperCase()}
+                {selectedUser.firstName.charAt(0).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
                 <h2 className="text-lg font-semibold text-white truncate">
-                  {selectedUser.name}
+                  {selectedUser.firstName} {selectedUser.lastName}
                 </h2>
                 <p className="text-sm text-white/40">{selectedUser.email}</p>
                 <p className="text-xs text-white/25 mt-1">
@@ -270,6 +270,30 @@ export function AdminUserDetail({ userId, onBack }: Props) {
                           <p className="text-white/30">Start Date</p>
                           <p className="text-white mt-0.5">
                             {new Date(m.startDate).toLocaleDateString()}
+                          </p>
+                        </div>
+                      )}
+                      {(m.registrationDetails as Record<string, unknown>)
+                        ?.contractNumber && (
+                        <div>
+                          <p className="text-white/30">Contract No.</p>
+                          <p className="text-blue-300 mt-0.5 font-mono text-xs">
+                            {String(
+                              (m.registrationDetails as Record<string, unknown>)
+                                .contractNumber,
+                            )}
+                          </p>
+                        </div>
+                      )}
+                      {(m.registrationDetails as Record<string, unknown>)
+                        ?.customerNumber && (
+                        <div>
+                          <p className="text-white/30">Customer No.</p>
+                          <p className="text-purple-300 mt-0.5 font-mono text-xs">
+                            {String(
+                              (m.registrationDetails as Record<string, unknown>)
+                                .customerNumber,
+                            )}
                           </p>
                         </div>
                       )}

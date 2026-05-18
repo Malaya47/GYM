@@ -109,10 +109,12 @@ export function AdminDashboard() {
               {recentUsers.map((u) => (
                 <li key={u.id} className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-xs font-bold text-white/60">
-                    {u.name[0].toUpperCase()}
+                    {u.firstName[0].toUpperCase()}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm text-white truncate">{u.name}</p>
+                    <p className="text-sm text-white truncate">
+                      {u.firstName} {u.lastName}
+                    </p>
                     <p className="text-xs text-white/30 truncate">{u.email}</p>
                   </div>
                 </li>
@@ -132,7 +134,9 @@ export function AdminDashboard() {
             <ul className="space-y-3">
               {pendingMemberships.map((m) => (
                 <li key={m.id} className="flex flex-col gap-0.5">
-                  <p className="text-sm text-white truncate">{m.user.name}</p>
+                  <p className="text-sm text-white truncate">
+                    {m.user.firstName} {m.user.lastName}
+                  </p>
                   <p className="text-xs text-white/30">
                     {m.plan.name} — {m.plan.currency} {m.plan.price}
                   </p>
@@ -153,7 +157,9 @@ export function AdminDashboard() {
             <ul className="space-y-3">
               {pendingOrders.map((o) => (
                 <li key={o.id} className="flex flex-col gap-0.5">
-                  <p className="text-sm text-white truncate">{o.user.name}</p>
+                  <p className="text-sm text-white truncate">
+                    {o.user.firstName} {o.user.lastName}
+                  </p>
                   <p className="text-xs text-white/30">
                     CHF {o.totalAmount.toFixed(2)} — {o.items.length} item(s)
                   </p>

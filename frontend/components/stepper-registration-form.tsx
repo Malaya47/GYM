@@ -15,6 +15,7 @@ import {
   MembershipPlan,
   purchaseMembership,
 } from "@/store/slices/membershipSlice";
+import { useRouter } from "next/navigation";
 import { Check, Eraser, Loader2 } from "lucide-react";
 
 type Step = 0 | 1 | 2 | 3;
@@ -123,6 +124,7 @@ export function StepperRegistrationForm({
 }: {
   onComplete?: () => void;
 }) {
+  const router = useRouter();
   const dispatch = useAppDispatch();
   const {
     plans,
@@ -157,6 +159,64 @@ export function StepperRegistrationForm({
   const [paymentFrequency, setPaymentFrequency] = useState<
     "MONTHLY" | "QUARTERLY" | "YEARLY"
   >("MONTHLY");
+  const [contractMemberSig, setContractMemberSig] = useState("");
+  const [guardianSig, setGuardianSig] = useState("");
+  const [contractPdfBase64, setContractPdfBase64] = useState<string | undefined>();
+  const [contractNumber] = useState(
+    () => "CNT-" + Math.random().toString(36).substring(2, 8).toUpperCase(),
+  );
+  const [customerNumber] = useState(
+    () => "CUS-" + Math.random().toString(36).substring(2, 8).toUpperCase(),
+  );
+
+  // Restore state after returning from the contract page
+  useEffect(() => {
+    const contractResultRaw = sessionStorage.getItem("gymContractResult");
+    const formStateRaw = sessionStorage.getItem("gymRegState");
+    if (!contractResultRaw || !formStateRaw) return;
+    try {
+      const contractResult = JSON.parse(contractResultRaw);
+      const saved = JSON.parse(formStateRaw);
+      setForm(saved.form);
+      setSelectedPlanId(saved.selectedPlanId);
+      setSelectedAdditionalPlanIds(saved.selectedAdditionalPlanIds);
+      setActivePlanCategory(saved.activePlanCategory);
+      setMembershipStartDate(saved.membershipStartDate);
+      setMembershipEndDate(saved.membershipEndDate);
+      setPaymentFrequency(saved.paymentFrequency);
+      setStep(saved.step);
+      setTermChecks(saved.termChecks);
+      if (contractResult.contractAccepted && contractResult.contractMemberSig) {
+        setContractMemberSig(contractResult.contractMemberSig);
+        if (contractResult.guardianSig)
+          setGuardianSig(contractResult.guardianSig);
+        // The PDF is stored in window (to avoid sessionStorage 5 MB limit)
+        const windowPdf = (
+          window as unknown as Record<string, unknown>
+        ).__gymContractPdf as string | undefined;
+        if (windowPdf) {
+          setContractPdfBase64(windowPdf);
+          delete (window as unknown as Record<string, unknown>).__gymContractPdf;
+        } else if (contractResult.contractPdfBase64)
+          setContractPdfBase64(contractResult.contractPdfBase64);
+        else if (contractResult.pdfBase64)
+          setContractPdfBase64(contractResult.pdfBase64);
+        else if (contractResult.contractImageBase64)
+          setContractPdfBase64(contractResult.contractImageBase64);
+        setSignatureDataUrl(contractResult.contractMemberSig);
+        setAgreementChecks(
+          (saved.agreementChecks as boolean[]).map((v, i) =>
+            i === 0 ? true : v,
+          ),
+        );
+      } else {
+        setAgreementChecks(saved.agreementChecks);
+      }
+    } catch {}
+    sessionStorage.removeItem("gymContractResult");
+    sessionStorage.removeItem("gymRegState");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     dispatch(fetchPlans());
@@ -227,6 +287,21 @@ export function StepperRegistrationForm({
     }
   }, [membershipStartDate, selectedPlan]);
   const currency = selectedPlan?.currency || content.registration_currency;
+
+  const isMinor = useMemo(() => {
+    if (!form.dateOfBirth) return false;
+    const birth = new Date(form.dateOfBirth);
+    const today = new Date();
+    const age =
+      today.getFullYear() -
+      birth.getFullYear() -
+      (today.getMonth() < birth.getMonth() ||
+      (today.getMonth() === birth.getMonth() &&
+        today.getDate() < birth.getDate())
+        ? 1
+        : 0);
+    return age < 18;
+  }, [form.dateOfBirth]);
 
   const additionalPlans = useMemo(
     () => plans.filter((p) => p.category === "ADDITIONAL"),
@@ -378,6 +453,53 @@ export function StepperRegistrationForm({
     setSignatureDataUrl("");
   }
 
+  function openContractPage() {
+    const state = {
+      form,
+      selectedPlanId,
+      selectedAdditionalPlanIds,
+      membershipStartDate,
+      membershipEndDate,
+      paymentFrequency,
+      step,
+      activePlanCategory,
+      agreementChecks,
+      termChecks,
+      contractNumber,
+      customerNumber,
+      isMinor,
+      currency,
+      registrationFee,
+      discountAmount,
+      discountLabel,
+      total,
+      planCategories,
+      selectedPlan: selectedPlan ?? null,
+      selectedAdditionalPlans: selectedAdditionalPlans.map((p) => ({
+        id: p.id,
+        name: p.name,
+        duration: p.duration,
+        price: p.price,
+        currency: p.currency,
+        features: p.features,
+        category: p.category,
+      })),
+      plans: plans
+        .filter((p) => p.category !== "ADDITIONAL")
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          duration: p.duration,
+          price: p.price,
+          currency: p.currency,
+          features: p.features,
+          category: p.category,
+        })),
+    };
+    sessionStorage.setItem("gymRegState", JSON.stringify(state));
+    router.push("/membership/contract");
+  }
+
   async function submit() {
     if (!validateStep(3) || !selectedPlan) return;
     setSuccess("");
@@ -414,11 +536,50 @@ export function StepperRegistrationForm({
           address: form.address,
           acceptedAgreement: agreementChecks.every(Boolean),
           acceptedTerms: termChecks.every(Boolean),
+          contractNumber,
+          customerNumber,
+          guardianSignatureDataUrl: guardianSig || undefined,
         },
       }),
     );
 
     if (purchaseMembership.fulfilled.match(purchase)) {
+      // Fire-and-forget: send signed agreement PDF to user + gym owner
+      api
+        .post("/membership/send-agreement-email", {
+          contractNumber,
+          customerNumber,
+          memberName: `${form.firstName} ${form.lastName}`,
+          email: form.email,
+          phone: form.phone,
+          dateOfBirth: form.dateOfBirth,
+          address: form.address,
+          emergencyContact: form.emergencyContact,
+          planName: selectedPlan.name || selectedPlan.duration,
+          planDuration: selectedPlan.duration,
+          planPrice: selectedPlan.price,
+          currency,
+          additionalPlans: selectedAdditionalPlans.map((p) => ({
+            name: p.name || p.duration,
+            duration: p.duration,
+            price: p.price,
+          })),
+          registrationFee,
+          discountAmount,
+          discountLabel,
+          total,
+          startDate: membershipStartDate,
+          endDate: membershipEndDate,
+          paymentFrequency,
+          signatureDataUrl,
+          guardianSignatureDataUrl: guardianSig || undefined,
+          isMinor,
+          ...(contractPdfBase64?.startsWith("data:application/pdf")
+            ? { contractPdfBase64 }
+            : { contractImageBase64: contractPdfBase64 }),
+        })
+        .catch((err) => console.error("Agreement email error:", err));
+
       setSuccess(
         "Registration submitted successfully. Awaiting admin approval.",
       );
@@ -829,20 +990,36 @@ export function StepperRegistrationForm({
               {content.agreement_text}
             </p>
             <div className="mt-5 space-y-3 rounded-md bg-white/10 p-4">
-              {[content.agreement_checkbox_1, content.agreement_checkbox_2].map(
-                (label, index) => (
-                  <CheckRow
-                    key={label}
-                    label={label}
-                    checked={agreementChecks[index]}
-                    onCheckedChange={(checked) =>
-                      setAgreementChecks((prev) =>
-                        prev.map((item, i) => (i === index ? checked : item)),
-                      )
-                    }
-                  />
-                ),
-              )}
+              {/* First checkbox: clicking opens the full contract modal */}
+              <label className="flex cursor-pointer items-start gap-3 text-sm leading-relaxed text-white/80">
+                <Checkbox
+                  checked={agreementChecks[0]}
+                  onCheckedChange={() => openContractPage()}
+                  className="mt-0.5 border-white/30 data-[state=checked]:bg-red-700"
+                />
+                <span>
+                  {content.agreement_checkbox_1}{" "}
+                  <button
+                    type="button"
+                    onClick={() => openContractPage()}
+                    className="underline text-red-400 hover:text-red-300 text-xs font-medium ml-1"
+                  >
+                    {agreementChecks[0]
+                      ? "(view contract)"
+                      : "View & Sign Contract →"}
+                  </button>
+                </span>
+              </label>
+              {/* Second checkbox: normal */}
+              <CheckRow
+                label={content.agreement_checkbox_2}
+                checked={agreementChecks[1]}
+                onCheckedChange={(checked) =>
+                  setAgreementChecks((prev) =>
+                    prev.map((item, i) => (i === 1 ? checked : item)),
+                  )
+                }
+              />
             </div>
           </div>
           {/* Right: total */}
@@ -886,29 +1063,65 @@ export function StepperRegistrationForm({
               </div>
             </div>
             <div className="rounded-lg bg-white/5 p-4">
-              <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <Label className="text-white/70">Draw Signature</Label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={clearSignature}
-                    className="h-8 gap-2 text-white/60 hover:text-white"
-                  >
-                    <Eraser size={14} /> Clear
-                  </Button>
+              {signatureDataUrl ? (
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <Label className="text-white/70">
+                      Your Signature{" "}
+                      <span className="text-green-400 text-xs">
+                        (signed via contract)
+                      </span>
+                    </Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSignatureDataUrl("");
+                        setContractMemberSig("");
+                        setAgreementChecks((prev) =>
+                          prev.map((item, i) => (i === 0 ? false : item)),
+                        );
+                      }}
+                      className="h-8 gap-2 text-white/60 hover:text-white"
+                    >
+                      <Eraser size={14} /> Re-sign
+                    </Button>
+                  </div>
+                  <div className="h-28 w-full rounded-md border border-white/10 bg-[#111] overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={signatureDataUrl}
+                      alt="Your signature"
+                      className="h-full w-full object-contain"
+                    />
+                  </div>
                 </div>
-                <canvas
-                  ref={canvasRef}
-                  onPointerDown={beginDraw}
-                  onPointerMove={draw}
-                  onPointerUp={endDraw}
-                  onPointerLeave={endDraw}
-                  className="h-28 w-full touch-none rounded-md border border-white/10 bg-[#111]"
-                  style={{ maxWidth: "100%" }}
-                />
-              </div>
+              ) : (
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <Label className="text-white/70">Draw Signature</Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearSignature}
+                      className="h-8 gap-2 text-white/60 hover:text-white"
+                    >
+                      <Eraser size={14} /> Clear
+                    </Button>
+                  </div>
+                  <canvas
+                    ref={canvasRef}
+                    onPointerDown={beginDraw}
+                    onPointerMove={draw}
+                    onPointerUp={endDraw}
+                    onPointerLeave={endDraw}
+                    className="h-28 w-full touch-none rounded-md border border-white/10 bg-[#111]"
+                    style={{ maxWidth: "100%" }}
+                  />
+                </div>
+              )}
               <div className="mt-4 rounded-md bg-white/10 p-3">
                 <CheckRow
                   label={content.terms_final_checkbox}
@@ -1073,6 +1286,15 @@ function TotalBox({
         <span>Total</span>
         <span>{money(currency, total)}</span>
       </div>
+    </div>
+  );
+}
+
+function ContractField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex gap-1 text-xs">
+      <span className="text-gray-500 shrink-0">{label}:</span>
+      <span className="font-medium text-gray-900 break-all">{value}</span>
     </div>
   );
 }

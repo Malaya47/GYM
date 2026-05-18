@@ -113,10 +113,11 @@ router.get(
       const users = await prisma.user.findMany({
         select: {
           id: true,
-          name: true,
+          firstName: true,
+          lastName: true,
           email: true,
           phone: true,
-          age: true,
+          dateOfBirth: true,
           gender: true,
           goal: true,
           createdAt: true,
@@ -148,10 +149,11 @@ router.get(
         where: { id },
         select: {
           id: true,
-          name: true,
+          firstName: true,
+          lastName: true,
           email: true,
           phone: true,
-          age: true,
+          dateOfBirth: true,
           gender: true,
           weight: true,
           height: true,
@@ -217,7 +219,9 @@ router.get(
       const purchases = await prisma.membershipPurchase.findMany({
         where,
         include: {
-          user: { select: { id: true, name: true, email: true } },
+          user: {
+            select: { id: true, firstName: true, lastName: true, email: true },
+          },
           plan: true,
         },
         orderBy: { createdAt: "desc" },
@@ -271,7 +275,9 @@ router.patch(
         where: { id },
         data: { status, notes: notes || null },
         include: {
-          user: { select: { id: true, name: true, email: true } },
+          user: {
+            select: { id: true, firstName: true, lastName: true, email: true },
+          },
           plan: true,
         },
       });
@@ -295,7 +301,9 @@ router.get(
       const orders = await prisma.order.findMany({
         where,
         include: {
-          user: { select: { id: true, name: true, email: true } },
+          user: {
+            select: { id: true, firstName: true, lastName: true, email: true },
+          },
           items: { include: { product: true } },
         },
         orderBy: { createdAt: "desc" },
@@ -376,7 +384,9 @@ router.patch(
         where: { id },
         data: { status, notes: notes || null },
         include: {
-          user: { select: { id: true, name: true, email: true } },
+          user: {
+            select: { id: true, firstName: true, lastName: true, email: true },
+          },
           items: { include: { product: true } },
         },
       });
